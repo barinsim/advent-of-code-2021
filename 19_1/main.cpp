@@ -7,10 +7,7 @@
 #include <set>
 #include <functional>
 #include <algorithm>
-#include <chrono>
-#include <random>
 
-#define ll long long int
 
 const std::vector<std::vector<int>> permutations = {
         {1, 2, 3},
@@ -61,9 +58,7 @@ struct Point
 
     bool operator < (const Point& p) const
     {
-        ll a = (ll)x << 36 | (ll)y << 16 | (ll)z;
-        ll b = (ll)p.x << 36 | (ll)p.y << 16 | (ll)p.z;
-        return a < b;
+        return std::make_tuple(x, y, z) < std::make_tuple(p.x, p.y, p.z);
     }
     bool operator == (const Point& p) const { return x == p.x && y == p.y && z == p.z; }
 };
@@ -97,11 +92,6 @@ struct Scaner
     }
 };
 
-std::ostream& operator << (std::ostream& os, const Point& p)
-{
-    return os << p.x << " " << p.y << " " << p.z;
-}
-
 int intersectionSize(const Scaner& a, const Scaner& b)
 {
     std::vector<Point> res;
@@ -111,9 +101,9 @@ int intersectionSize(const Scaner& a, const Scaner& b)
     return res.size();
 }
 
-std::vector<Scaner> readScaners()
+std::list<Scaner> readScaners()
 {
-    std::vector<Scaner> scaners;
+    std::list<Scaner> scaners;
     std::string line;
     while (std::getline(std::cin, line)) {
         scaners.emplace_back();
@@ -134,46 +124,33 @@ std::vector<Scaner> readScaners()
     return scaners;
 }
 
-int totalPoints(const std::list<Scaner>& scaners)
-{
-    int sum = 0;
-    for (auto& s : scaners) {
-        sum += s.points.size();
-    }
-    return sum;
-}
-
-std::list<Scaner> shuffled(std::list<Scaner>& scaners)
-{
-    std::vector<Scaner> vec(scaners.begin(), scaners.end());
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::shuffle(vec.begin(), vec.end(), std::default_random_engine(seed));
-    return {vec.begin(), vec.end()};
-}
-
 int main()
 {
     auto scaners = readScaners();
-    for (auto first1 = scaners.begin(); first1 != scaners.end(); ++first1) {
-        for (auto first2 = first1 + 1; first2 != scaners.end(); ++first2) {
-            bool found = false;
-            for (auto& perm : permutations) {
-                Scaner rotated = first2->rotated(perm);
-                for (auto& p1 : first1->points) {
-                    for (auto& p2 : rotated.points) {
-                        Scaner aligned = rotated.aligned(p2, p1);
-                        int size = intersectionSize(*first1, aligned);
-                        if (size >= 12) {
-                            std::cout << aligned.pos << std::endl;
-                            std::cout << first1->pos << std::endl;
-                            if (found) {
-                                std::cout << "weird" << std::endl;
+    std::vector<Scaner> fixed = {*scaners.begin()};
+    scaners.erase(scaners.begin());
+    std::set<Point> points(fixed[0].points.begin(), fixed[0].points.end());
+    while (!scaners.empty()) {
+        for (auto first1 = fixed.begin(); first1 != fixed.end(); ++first1) {
+            for (auto first2 = scaners.begin(); first2 != scaners.end(); ++first2) {
+                for (auto& perm : permutations) {
+                    Scaner rotated = first2->rotated(perm);
+                    for (auto& p1 : first1->points) {
+                        for (auto& p2 : rotated.points) {
+                            Scaner aligned = rotated.aligned(p2, p1);
+                            if (intersectionSize(*first1, aligned) >= 12) {
+                                fixed.push_back(aligned);
+                                points.insert(aligned.points.begin(), aligned.points.end());
+                                scaners.erase(first2);
+                                goto loop;
                             }
-                            found = true;
                         }
                     }
                 }
             }
         }
+        loop:
+        int jumpLabel = 1;
     }
+    std::cout << points.size() << std::endl;
 }
